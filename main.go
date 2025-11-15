@@ -6,10 +6,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var user, password, database string = "postgres", "password", "mydb"
+var user, password, host, database string = "postgres", "password", "localhost", "mydb"
+var port int = 5432
 
 func main() {
-	ConnectDB(fmt.Sprintf("postgres://%s:%s@localhost:5432/%s?sslmode=disable", user, password, database))
+	ConnectDB(fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=disable", user, password, host, port, database))
 	defer Close()
 
 	r := gin.Default()

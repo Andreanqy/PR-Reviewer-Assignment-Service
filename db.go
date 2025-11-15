@@ -10,6 +10,7 @@ import (
 
 var Pool *sql.DB
 
+// Подключение к БД
 func ConnectDB(url string) {
 	var err error
 	Pool, err = sql.Open("postgres", url)
@@ -17,7 +18,6 @@ func ConnectDB(url string) {
 		log.Fatalf("Unable to connect to database: %v\n", err)
 	}
 
-	// Проверка подключения
 	if err = Pool.Ping(); err != nil {
 		log.Fatalf("Unable to ping database: %v\n", err)
 	}
@@ -25,6 +25,7 @@ func ConnectDB(url string) {
 	fmt.Println("Connected to PostgreSQL")
 }
 
+// Закрытие БД
 func Close() {
 	Pool.Close()
 	fmt.Println("Database closed")

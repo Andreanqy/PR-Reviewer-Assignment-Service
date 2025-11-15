@@ -14,7 +14,7 @@ type PR struct {
 	Status   string `json:"status"`
 }
 
-// Создание PullRequest в БД
+// Добавление PullRequest в БД
 func CreatePR(pr *PR) error {
 	err := Pool.QueryRow(
 		"INSERT INTO PullRequests (title, author_id, status) VALUES ($1, $2, $3) RETURNING id",
@@ -23,6 +23,7 @@ func CreatePR(pr *PR) error {
 	return err
 }
 
+// Создание PullRequest
 func CreatePRHandler(c *gin.Context) {
 	var pr PR
 	if err := c.ShouldBindJSON(&pr); err != nil {
