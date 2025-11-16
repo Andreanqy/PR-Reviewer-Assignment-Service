@@ -7,15 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// Структура PullRequest
-type PR struct {
-	PullRequestID     string   `json:"pull_request_id"`
-	PullRequestName   string   `json:"pull_request_name"`
-	AuthorID          string   `json:"author_id"`
-	Status            string   `json:"status"`
-	AssignedReviewers []string `json:"assigned_reviewers,omitempty"`
-}
-
+// Добавление PullRequest в БД
 func CreatePR(pr *PR) error {
 	tx, err := Pool.Begin()
 	if err != nil {
@@ -92,4 +84,52 @@ func CreatePRHandler(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, pr)
+}
+
+// Реализация операции merge
+func MergePRHandler(c *gin.Context) {
+	var body struct {
+		PullRequestID string `json:"pull_request_id"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	prID, _ := strconv.Atoi(body.PullRequestID)
+
+	// Проверяем статус
+	var status string
+	err := Pool.QueryRow("SELECT status FROM PullRequests WHERE id=$1", prID).Scan(&status)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "PR not found"})
+		return
+	}
+
+	if status == "MERGED" {
+		//c.JSON(http.StatusOK, gin.H{"message": "PR already merged"})
+		c.JSON(http.StatusOK, gin.H{
+			"pull_request_id": body.PullRequestID,
+			"status":          "MERGED",
+		})
+		return
+	}
+
+	_, err = Pool.Exec("UPDATE PullRequests SET status='MERGED' WHERE id=$1", prID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Возвращаем PR с ревьюверами
+	rows, _ := Pool.Query("SELECT reviewer_id FROM PullRequestReviewers WHERE pr_id=$1", prID)
+	for rows.Next() {
+		var id int
+		rows.Scan(&id)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"pull_request_id": body.PullRequestID,
+		"status":          "MERGED",
+	})
 }
