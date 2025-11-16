@@ -133,3 +133,86 @@ func MergePRHandler(c *gin.Context) {
 		"status":          "MERGED",
 	})
 }
+
+// Переназначение ревьювера
+func ReassignReviewerPRHandler(c *gin.Context) {
+	var body struct {
+		PullRequestID string `json:"pull_request_id"`
+		OldUserID     string `json:"old_user_id"`
+	}
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	prID, _ := strconv.Atoi(body.PullRequestID)
+	oldID, _ := strconv.Atoi(body.OldUserID)
+
+	// Проверяем, что PR существует и открыт
+	var status string
+	var authorID int
+	err := Pool.QueryRow("SELECT status, author_id FROM PullRequests WHERE id=$1", prID).Scan(&status, &authorID)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "PR not found"})
+		return
+	}
+	if status == "MERGED" {
+		c.JSON(http.StatusConflict, gin.H{"error": "cannot reassign on merged PR"})
+		return
+	}
+
+	// Проверяем, что старый ревьювер назначен
+	var exists bool
+	err = Pool.QueryRow("SELECT EXISTS(SELECT 1 FROM PullRequestReviewers WHERE pr_id=$1 AND reviewer_id=$2)", prID, oldID).Scan(&exists)
+	if err != nil || !exists {
+		c.JSON(http.StatusConflict, gin.H{"error": "reviewer is not assigned to this PR"})
+		return
+	}
+
+	// Получаем команду старого ревьювера
+	var team string
+	err = Pool.QueryRow("SELECT team FROM Users WHERE id=$1", oldID).Scan(&team)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "old user not found"})
+		return
+	}
+
+	// Находим первого доступного кандидата
+	var newID int
+	err = Pool.QueryRow(`
+        SELECT id FROM Users 
+        WHERE team=$1 AND is_active=true AND id!=$2 AND id!=$3 
+        AND id NOT IN (SELECT reviewer_id FROM PullRequestReviewers WHERE pr_id=$4)
+        LIMIT 1
+    `, team, oldID, authorID, prID).Scan(&newID)
+	if err != nil {
+		c.JSON(http.StatusConflict, gin.H{"error": "no available replacement candidate"})
+		return
+	}
+
+	// Обновляем ревьювера
+	_, err = Pool.Exec("UPDATE PullRequestReviewers SET reviewer_id=$1 WHERE pr_id=$2 AND reviewer_id=$3", newID, prID, oldID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// Возвращаем новый список ревьюверов
+	rows, _ := Pool.Query("SELECT reviewer_id FROM PullRequestReviewers WHERE pr_id=$1", prID)
+	var reviewers []string
+	for rows.Next() {
+		var id int
+		rows.Scan(&id)
+		reviewers = append(reviewers, strconv.Itoa(id))
+	}
+	rows.Close()
+
+	c.JSON(http.StatusOK, gin.H{
+		"pr": PR{
+			PullRequestID:     body.PullRequestID,
+			Status:            status,
+			AssignedReviewers: reviewers,
+		},
+		"replaced_by": strconv.Itoa(newID),
+	})
+}

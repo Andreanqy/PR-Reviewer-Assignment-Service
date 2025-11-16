@@ -16,7 +16,7 @@ func main() {
 	r := gin.Default()
 	r.POST("/pullRequest/create", CreatePRHandler)
 	r.POST("/pullRequest/merge", MergePRHandler)
-	//r.POST("/pullRequest/reassign", ReassignReviewerPRHandler)
+	r.POST("/pullRequest/reassign", ReassignReviewerPRHandler)
 
 	//r.POST("team/add", CreateTeamHandler)
 	//r.POST("users/setIsActive", SetUserActiveHandler)
