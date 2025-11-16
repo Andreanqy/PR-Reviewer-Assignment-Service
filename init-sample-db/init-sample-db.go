@@ -65,6 +65,12 @@ func main() {
 			author_id INT REFERENCES Users(id),
 			status VARCHAR(20) CHECK (status IN ('OPEN', 'MERGED'))
 		);`,
+		`CREATE TABLE PullRequestReviewers (
+    		id SERIAL PRIMARY KEY,
+   		 	pr_id INT NOT NULL REFERENCES PullRequests(id) ON DELETE CASCADE,
+    		reviewer_id INT NOT NULL REFERENCES users(id),
+    		UNIQUE(pr_id, reviewer_id)
+		);`,
 	}
 
 	for _, query := range createTables {
@@ -83,6 +89,7 @@ func main() {
 	}{
 		{"Alice", "Frontend", true},
 		{"Bob", "Frontend", true},
+		{"Tom", "Frontend", true},
 		{"Charlie", "Backend", true},
 	}
 
