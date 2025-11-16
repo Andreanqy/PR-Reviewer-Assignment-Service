@@ -2,17 +2,18 @@ package main
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
 
 // Структура PullRequest
 type PR struct {
-	ID        int    `json:"id"`
-	Title     string `json:"title"`
-	AuthorID  int    `json:"author_id"`
-	Status    string `json:"status"`
-	Reviewers []int  `json:"reviewers,omitempty"`
+	PullRequestID     string   `json:"pull_request_id"`
+	PullRequestName   string   `json:"pull_request_name"`
+	AuthorID          string   `json:"author_id"`
+	Status            string   `json:"status"`
+	AssignedReviewers []string `json:"assigned_reviewers,omitempty"`
 }
 
 func CreatePR(pr *PR) error {
@@ -22,16 +23,18 @@ func CreatePR(pr *PR) error {
 	}
 	defer tx.Rollback()
 
-	// Сохраняем PR и получаем его id
+	// Сохранение PR и получение его id
+	var prID int
 	err = tx.QueryRow(
-		"INSERT INTO PullRequests (title, author_id, status) VALUES ($1, $2, $3) RETURNING id",
-		pr.Title, pr.AuthorID, pr.Status,
-	).Scan(&pr.ID)
+		"INSERT INTO PullRequests (pull_request_name, author_id, status) VALUES ($1, $2, $3) RETURNING id",
+		pr.PullRequestName, pr.AuthorID, pr.Status,
+	).Scan(&prID)
 	if err != nil {
 		return err
 	}
+	pr.PullRequestID = strconv.Itoa(prID)
 
-	// Сначала читаем ревьюеров
+	// Чтение доступных ревьюверов
 	rows, err := tx.Query(`
         SELECT id FROM Users
         WHERE team = (SELECT team FROM Users WHERE id = $1)
@@ -42,10 +45,10 @@ func CreatePR(pr *PR) error {
 		return err
 	}
 
-	reviewerIDs := []int{}
+	reviewerIDs := []string{}
 
 	for rows.Next() {
-		var reviewerID int
+		var reviewerID string
 		if err := rows.Scan(&reviewerID); err != nil {
 			rows.Close()
 			return err
@@ -56,18 +59,18 @@ func CreatePR(pr *PR) error {
 		rows.Close()
 		return err
 	}
-	rows.Close() // <-- обязательно закрываем перед вставкой!
+	rows.Close()
 
-	// Теперь делаем вставки в reviewers
+	// Вставки в assigned_reviewers
 	for _, reviewerID := range reviewerIDs {
 		_, err = tx.Exec(
 			"INSERT INTO PullRequestReviewers (pr_id, reviewer_id) VALUES ($1, $2)",
-			pr.ID, reviewerID,
+			pr.PullRequestID, reviewerID,
 		)
 		if err != nil {
 			return err
 		}
-		pr.Reviewers = append(pr.Reviewers, reviewerID)
+		pr.AssignedReviewers = append(pr.AssignedReviewers, reviewerID)
 	}
 
 	return tx.Commit()
@@ -88,5 +91,5 @@ func CreatePRHandler(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, pr)
+	c.JSON(http.StatusCreated, pr)
 }

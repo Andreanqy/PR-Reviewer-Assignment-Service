@@ -38,9 +38,9 @@ func main() {
 		log.Fatalf("Failed to create database: %v", err)
 	}
 	fmt.Println("Database created successfully!")
+	db.Close()
 
 	// Подключение к новой базе mydb
-	db.Close()
 	db, err = sql.Open("postgres", fmt.Sprintf("postgres://%s:%s@localhost:%d/%s?sslmode=disable", user, pass, port, dbName))
 	if err != nil {
 		log.Fatalf("Failed to connect to new database: %v", err)
@@ -61,7 +61,7 @@ func main() {
 		);`,
 		`CREATE TABLE IF NOT EXISTS PullRequests (
 			id SERIAL PRIMARY KEY,
-			title VARCHAR(100),
+			pull_request_name VARCHAR(100),
 			author_id INT REFERENCES Users(id),
 			status VARCHAR(20) CHECK (status IN ('OPEN', 'MERGED'))
 		);`,
@@ -122,7 +122,7 @@ func main() {
 	}
 
 	for _, pr := range prs {
-		_, err := db.Exec("INSERT INTO PullRequests (title, author_id, status) VALUES ($1, $2, $3)", pr.title, pr.authorID, pr.status)
+		_, err := db.Exec("INSERT INTO PullRequests (pull_request_name, author_id, status) VALUES ($1, $2, $3)", pr.title, pr.authorID, pr.status)
 		if err != nil {
 			log.Fatalf("Failed to insert PR: %v", err)
 		}

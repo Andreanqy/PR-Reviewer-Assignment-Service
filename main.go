@@ -14,6 +14,6 @@ func main() {
 	defer Close()
 
 	r := gin.Default()
-	r.POST("/pr", CreatePRHandler)
+	r.POST("/pullRequest/create", CreatePRHandler)
 	r.Run(":8080")
 }
