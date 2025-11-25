@@ -1,28 +1,15 @@
-# Builder
-FROM golang:1.21-alpine AS builder
+FROM python:3.9
 
 WORKDIR /app
 
-# Копируем модули и скачиваем зависимости
-COPY go.mod go.sum ./
-RUN go mod download
+COPY requirements.txt .
 
-# Копируем весь проект
-COPY . .
+RUN pip install -r requirements.txt
 
-# Сборка бинарника
-RUN go build -o server .
+COPY app/ .
 
-# Финальный образ
-FROM alpine:3.18
+COPY migrations/ /migrations/
 
-WORKDIR /app
+COPY scripts/ ./scripts/
 
-# Копируем бинарник
-COPY --from=builder /app/server .
-
-# Открываем порт
-EXPOSE 8080
-
-# Команда запуска
-CMD ["./server"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

@@ -1,37 +1,25 @@
-version: "3.9"
-
 services:
   db:
-    image: postgres:16
-    container_name: pr_db
+    image: postgres:13
     environment:
+      POSTGRES_DB: mydb
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: password
-      POSTGRES_DB: mydb
     ports:
       - "5432:5432"
     volumes:
-      - db_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 5s
-      retries: 5
+      - postgres_data:/var/lib/postgresql/data
+      - ./migrations:/docker-entrypoint-initdb.d
 
   app:
     build: .
-    container_name: pr_server
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      DB_HOST: db
-      DB_USER: postgres
-      DB_PASS: password
-      DB_NAME: mydb
-      DB_PORT: 5432
     ports:
       - "8080:8080"
-    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://postgres:password@db:5432/mydb
+    depends_on:
+      - db
+    command: ["./scripts/wait-for-db.sh", "db:5432", "--", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]
 
 volumes:
-  db_data:
+  postgres_data:
